@@ -31,6 +31,7 @@ Thumbs.db
 .idea/
 uploads/
 dataset/
+frontend/.gitignore
 
 # Miscellaneous
 *.log
