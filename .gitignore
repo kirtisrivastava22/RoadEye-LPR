@@ -30,6 +30,8 @@ Thumbs.db
 .vscode/
 .idea/
 uploads/
+dataset/
+
 # Miscellaneous
 *.log
 *.pem

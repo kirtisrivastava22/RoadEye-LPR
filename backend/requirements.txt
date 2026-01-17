@@ -1,9 +1,10 @@
-fastapi
-uvicorn
+ultralytics
 opencv-python
 numpy
-pillow
-torch
-ultralytics
-easyocr
+paddleocr
+paddlepaddle
+fastapi
+uvicorn
 sqlalchemy
+pydantic
+python-multipart
