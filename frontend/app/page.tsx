@@ -1,5 +1,4 @@
 "use client"
-
 import { useEffect, useRef, useState } from "react"
 
 type Detection = {
@@ -15,7 +14,6 @@ export default function LiveCameraPage() {
   const wsRef = useRef<WebSocket | null>(null)
   const [detections, setDetections] = useState<Detection[]>([])
 
-  // 1️⃣ Start webcam
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
       if (videoRef.current) {
@@ -25,9 +23,8 @@ export default function LiveCameraPage() {
     })
   }, [])
 
-  // 2️⃣ Connect to WebSocket
   useEffect(() => {
-    wsRef.current = new WebSocket("ws://localhost:8000/ws/live")
+    wsRef.current = new WebSocket("ws://localhost:8000/ws/video")
 
     wsRef.current.onmessage = (event) => {
       const data: Detection = JSON.parse(event.data)
@@ -37,7 +34,6 @@ export default function LiveCameraPage() {
     return () => wsRef.current?.close()
   }, [])
 
-  // 3️⃣ Draw bounding boxes
   useEffect(() => {
     const canvas = canvasRef.current
     const video = videoRef.current
@@ -49,21 +45,18 @@ export default function LiveCameraPage() {
     const render = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      // Match canvas size to video
       canvas.width = video.videoWidth
       canvas.height = video.videoHeight
 
       detections.forEach((det) => {
         const [x1, y1, x2, y2] = det.bbox
 
-        // Neon box
         ctx.strokeStyle = "#22D3EE"
         ctx.lineWidth = 3
         ctx.shadowColor = "#22D3EE"
         ctx.shadowBlur = 15
         ctx.strokeRect(x1, y1, x2 - x1, y2 - y1)
 
-        // Plate text
         ctx.fillStyle = "#22D3EE"
         ctx.shadowBlur = 10
         ctx.font = "20px monospace"

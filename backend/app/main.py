@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers import image, video, webcam, history
 from app.database import engine
 from app.models import Detection
+import os
+os.environ["DISABLE_MODEL_SOURCE_CHECK"] = "True"
 
 app = FastAPI(title="RoadEye-LPR API")
 
