@@ -1,55 +1,72 @@
+# app/routers/image.py
 from fastapi import APIRouter, UploadFile, File
-import cv2, re, numpy as np
-
-from app.detector.detector import PlateDetector
-from app.detector.ocr import PlateOCR
+import cv2
+import numpy as np
+import base64
+from datetime import datetime
+from app.detector.video_pipeline import process_license_plate
 from app.database import SessionLocal
 from app.models import Detection
+import os
 
 router = APIRouter()
 
-CONF_THRESHOLD = 0.2
-PLATE_REGEX = r"^[A-Z0-9]{6,10}$"
-
-detector = PlateDetector("yolov8n.pt")
-ocr = PlateOCR()
+# Create directory for storing images
+UPLOAD_DIR = "uploads/images"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @router.post("/image")
 async def detect_image(file: UploadFile = File(...)):
+    """Detect license plates in uploaded image"""
+    
+    # Read and decode image
     data = await file.read()
     np_img = np.frombuffer(data, np.uint8)
     image = cv2.imdecode(np_img, cv2.IMREAD_COLOR)
-
-    detections = detector.detect(image)
-    db = SessionLocal()
+    
+    if image is None:
+        return {"error": "Invalid image", "detections": []}
+    
+    # Process image with your detection pipeline
+    plate_crop, annotated_image, plate_text, confidence = process_license_plate(image)
+    
     results = []
-
-    for det in detections:
-        plate_text = ocr.read_plate(det["plate_crop"]).strip().upper()
-
-        if not plate_text:
-            continue
-        if det["confidence"] < CONF_THRESHOLD:
-            continue
-        if not re.match(PLATE_REGEX, plate_text):
-            continue
-
-        record = Detection(
-            plate_number=plate_text,
-            confidence=det["confidence"],
-            source="image"
-        )
-
-        db.add(record)
-        db.commit()
-        db.refresh(record)
-
-        results.append({
-            "id": record.id,
-            "plate_number": plate_text,
-            "confidence": det["confidence"]
-        })
-
-    db.close()
-
-    return {"detections": results, "count": len(results)}
+    db = SessionLocal()
+    
+    try:
+        if plate_text and confidence > 0.15:  # Confidence threshold
+            # Save annotated image
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            image_filename = f"{timestamp}_{plate_text}.jpg"
+            image_path = os.path.join(UPLOAD_DIR, image_filename)
+            cv2.imwrite(image_path, annotated_image)
+            
+            # Save to database
+            record = Detection(
+                plate_number=plate_text,
+                confidence=float(confidence),
+                source="image",
+                image_path=f"/uploads/images/{image_filename}"
+            )
+            db.add(record)
+            db.commit()
+            db.refresh(record)
+            
+            results.append({
+                "id": record.id,
+                "plate_number": plate_text,
+                "confidence": float(confidence)
+            })
+        
+        # Encode annotated image to base64
+        _, buffer = cv2.imencode('.jpg', annotated_image)
+        annotated_b64 = base64.b64encode(buffer).decode('utf-8')
+        
+        return {
+            "detections": results,
+            "count": len(results),
+            "annotated_image": annotated_b64
+        }
+    
+    finally:
+        db.close()
