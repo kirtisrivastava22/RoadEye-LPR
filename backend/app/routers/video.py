@@ -74,3 +74,33 @@ async def video_stream_ws(ws: WebSocket):
         print(f"[ERROR] {e}")
         import traceback
         traceback.print_exc()
+        
+CONF_THRESHOLD = 0.2
+
+@router.websocket("/webcam")
+async def webcam_ws(ws: WebSocket):
+    await ws.accept()
+
+    try:
+        while True:
+            data = await ws.receive_bytes()
+
+            nparr = np.frombuffer(data, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+            if frame is None:
+                continue
+
+            _, annotated, plate, confidence = process_license_plate(frame)
+
+            _, buffer = cv2.imencode(".jpg", annotated)
+            frame_b64 = base64.b64encode(buffer).decode()
+
+            await ws.send_json({
+                "frame": frame_b64,
+                "plate": plate,
+                "confidence": confidence,
+                "timestamp": time.time()
+            })
+    except WebSocketDisconnect:
+        print("Webcam disconnected")

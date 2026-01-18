@@ -1,4 +1,3 @@
-# main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -7,16 +6,15 @@ from app.database import engine
 from app.models import Base
 import os
 
-# Create database tables
 Base.metadata.create_all(bind=engine)
 
-# Create upload directories
-os.makedirs("uploads/images", exist_ok=True)
-os.makedirs("uploads/videos", exist_ok=True)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+os.makedirs(os.path.join(UPLOAD_DIR, "images"), exist_ok=True)
+os.makedirs(os.path.join(UPLOAD_DIR, "videos"), exist_ok=True)
 
 app = FastAPI(title="RoadEye LPR API")
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:5173"],
@@ -25,10 +23,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve static files (uploaded images)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
-# Include routers
 app.include_router(image.router, prefix="/detect", tags=["Detection"])
 app.include_router(video.router, prefix="/ws", tags=["WebSocket"])
 app.include_router(history.router, prefix="/history", tags=["History"])
@@ -40,7 +36,7 @@ async def root():
         "version": "1.0.0",
         "endpoints": {
             "image_detection": "/detect/image",
-            "video_stream": "/ws/video_stream",
+            "video_stream": "/ws/webcam",
             "history": "/history/"
         }
     }
@@ -49,7 +45,6 @@ async def root():
 async def health_check():
     return {"status": "healthy"}
 
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
@@ -57,5 +52,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=True,
-        workers=1  # Single worker for Windows compatibility
+        workers=1
     )

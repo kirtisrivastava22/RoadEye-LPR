@@ -3,11 +3,13 @@ import Sidebar from "../components/Sidebar";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="bg-[#0B0F14] text-gray-200 flex min-h-screen">
-        <Sidebar />
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
-      </body>
+    <html lang="en" className="h-full">
+      <body className="flex min-h-screen bg-[#0B0F14]">
+  <Sidebar /> {/* w-64 */}
+  <main className="flex-1 p-8 overflow-y-auto"> {/* flex-1 takes the remaining width */}
+    {children}
+  </main>
+</body>
     </html>
   )
 }
