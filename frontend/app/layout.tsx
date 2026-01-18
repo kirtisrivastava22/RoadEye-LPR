@@ -1,6 +1,14 @@
 import "./globals.css";
 import Sidebar from "../components/Sidebar";
 
+export const metadata = {
+  title: "RoadEye LPR",
+  description: "License Plate Recognition System",
+  icons: {
+    icon: "/icon.png",
+  },
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="h-full">

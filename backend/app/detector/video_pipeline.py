@@ -3,6 +3,9 @@ from ultralytics import YOLO
 import easyocr
 import os
 import logging
+from collections import defaultdict
+from app.detector.ocr import PlateOCR
+
 
 # Prevent multiprocessing issues on Windows
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
@@ -10,6 +13,9 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 # Initialize models as None
 _ocr = None
 _model = None
+
+ocr_engine = PlateOCR()
+plate_buffer = defaultdict(list)
 
 def get_ocr():
     """Lazy load OCR to avoid multiprocessing issues"""
@@ -155,13 +161,13 @@ def process_license_plate(image):
     if plate is None:
         return None, detected_image, None, 0.0
     
-    ocr_texts = extract_text_with_easyocr(plate)
+    # ocr_texts = extract_text_with_easyocr(plate)
     
-    if not ocr_texts:
-        return None, detected_image, None, confidence
+    # if not ocr_texts:
+    #     return None, detected_image, None, confidence
     
-    # Clean up text - remove spaces and special chars for license plates
-    formatted_text = "".join(ocr_texts).replace(" ", "").upper()
+    text = ocr_engine.read_plate(plate)
+    formatted_text = text
     
     cv2.putText(detected_image, formatted_text, (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
@@ -207,13 +213,16 @@ def process_video(input_path, output_path):
             annotated_frame = cv2.resize(annotated_frame, (frame_width, frame_height))
         
         out.write(annotated_frame)
-        
-        if ocr_text and ocr_text.strip():
-            detected_plates.add(ocr_text.strip())
+        if ocr_text:
+            plate_buffer[ocr_text].append(ocr_text)
+
+            if len(plate_buffer[ocr_text]) >= 3:
+                detected_plates.add(ocr_text)
         
         if frame_count % 30 == 0:
             print(f"[INFO] Processed frame {frame_count} - OCR: {ocr_text}")
         
+
         frame_count += 1
     
     cap.release()

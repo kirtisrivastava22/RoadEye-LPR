@@ -1,66 +1,98 @@
-import easyocr
 import numpy as np
+import cv2
+import re
+from app.detector.plate_postprocess import apply_plate_syntax
+
+
+try:
+    from paddleocr import PaddleOCR
+    PADDLE_AVAILABLE = True
+except ImportError:
+    PADDLE_AVAILABLE = False
+
+import easyocr
+
 
 class PlateOCR:
     def __init__(self):
-        self.reader = easyocr.Reader(['en'], gpu=False)
-    
-    def read_plate(self, plate_img: np.ndarray) -> tuple[str, float]:
-        """
-        Read plate text and return (text, confidence)
-        Returns: (cleaned_text, confidence_score)
-        """
-        print(f"[DEBUG] OCR input shape: {plate_img.shape}")
-        
-        results = self.reader.readtext(plate_img)
-        
-        if not results:
-            print("[DEBUG] OCR found no text")
-            return "", 0.0
-        
-        # Sort by confidence and get the best result
-        results.sort(key=lambda x: x[2], reverse=True)
-        best_result = results[0]
-        
-        # Extract text and confidence
-        text = best_result[1]
-        confidence = float(best_result[2])
-        
-        print(f"[DEBUG] OCR detected: '{text}' (confidence: {confidence:.3f})")
-        
-        # Clean the text
-        cleaned_text = self.clean_text(text)
-        
-        print(f"[DEBUG] Cleaned text: '{cleaned_text}'")
-        
-        return cleaned_text, confidence
-    
-    def clean_text(self, text: str) -> str:
-        """Clean OCR text to extract valid plate number"""
-        if not text:
+        print("[INIT] PlateOCR")
+
+        # EasyOCR (always available)
+        self.easy = easyocr.Reader(['en'], gpu=False)
+
+        # PaddleOCR (optional)
+        self.paddle = None
+        if PADDLE_AVAILABLE:
+            try:
+                self.paddle = PaddleOCR(
+                    use_angle_cls=True,
+                    lang='en'
+                )
+                print("[INIT] PaddleOCR loaded")
+            except Exception as e:
+                print("[WARN] PaddleOCR failed, falling back to EasyOCR:", e)
+                self.paddle = None
+
+    def read_plate(self, plate_img: np.ndarray) -> str:
+        if plate_img is None or plate_img.size == 0:
             return ""
-        
-        # Remove common OCR artifacts and clean
-        cleaned = text.strip()
-        cleaned = cleaned.replace('[', '').replace(']', '')
-        cleaned = cleaned.replace('(', '').replace(')', '')
-        cleaned = cleaned.replace('{', '').replace('}', '')
-        cleaned = cleaned.replace(',', '').replace('.', '')
-        cleaned = cleaned.replace(' ', '').replace('-', '')
-        cleaned = cleaned.replace('|', 'I').replace('!', '1')
-        
-        # Common OCR corrections
-        # cleaned = cleaned.replace('O', '0')  # Uncomment if needed
-        
-        cleaned = cleaned.upper()
-        
-        return cleaned
-    
-    def read_plate_all_results(self, plate_img: np.ndarray) -> list:
-        """
-        Return all OCR results for debugging
-        Returns: list of (text, confidence) tuples
-        """
-        results = self.reader.readtext(plate_img)
-        
-        return [(r[1], float(r[2])) for r in results]
+
+        plate_img = self._preprocess(plate_img)
+
+        # 1️⃣ PaddleOCR first
+        if self.paddle:
+            text = self._read_paddle(plate_img)
+            if text:
+                print(f"[OCR:PADDLE] {text}")
+                return text
+
+        # 2️⃣ EasyOCR fallback
+        text = self._read_easy(plate_img)
+        if text:
+            print(f"[OCR:EASY] {text}")
+            return text
+
+        return ""
+
+    def _read_paddle(self, img):
+        try:
+            result = self.paddle.predict(img) 
+        except Exception as e:
+            print("[ERROR] PaddleOCR failed:", e)
+            return ""
+
+        if not result or not result[0]:
+            return ""
+
+        best = max(result[0], key=lambda x: x[1][1])
+        return self._clean(best[1][0])
+
+
+    def _read_easy(self, img):
+        results = self.easy.readtext(img)
+        if not results:
+            return ""
+
+        results.sort(key=lambda x: x[2], reverse=True)
+        return self._clean(results[0][1])
+
+    def _clean(self, text: str) -> str:
+        text = text.upper()
+        text = text.upper()
+        text = "".join(c for c in text if c.isalnum())
+        text = apply_plate_syntax(text, country="IN")
+        return text
+
+
+    def _preprocess(self, img):
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        h, w = gray.shape
+        if h < 40:
+            scale = 40 / h
+            gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+
+        gray = cv2.bilateralFilter(gray, 11, 17, 17)
+        gray = cv2.equalizeHist(gray)
+
+        return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
