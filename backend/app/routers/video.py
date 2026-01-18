@@ -1,10 +1,10 @@
-# ws_video.py or video.py (your WebSocket handler)
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.detector.video_pipeline import process_license_plate
 import cv2
 import numpy as np
 import base64
 import json
+import time 
 
 router = APIRouter()
 
