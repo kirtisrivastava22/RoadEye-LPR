@@ -1,8 +1,6 @@
 import numpy as np
 import cv2
-import re
 from app.detector.plate_postprocess import apply_plate_syntax
-
 
 try:
     from paddleocr import PaddleOCR
@@ -13,81 +11,96 @@ except ImportError:
 import easyocr
 
 
+def plate_quality_score(crop):
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
+    contrast = gray.std()
+    h, w = gray.shape
+
+    return (
+        0.4 * min(sharpness / 200, 1.0) +
+        0.4 * min(contrast / 50, 1.0) +
+        0.2 * min((h * w) / (120 * 40), 1.0)
+    )
+
+
 class PlateOCR:
     def __init__(self):
         print("[INIT] PlateOCR")
 
-        # EasyOCR (always available)
         self.easy = easyocr.Reader(['en'], gpu=False)
-
-        # PaddleOCR (optional)
         self.paddle = None
+
         if PADDLE_AVAILABLE:
             try:
-                self.paddle = PaddleOCR(
-                    use_angle_cls=True,
-                    lang='en'
-                )
+                self.paddle = PaddleOCR(use_angle_cls=True, lang='en')
                 print("[INIT] PaddleOCR loaded")
             except Exception as e:
-                print("[WARN] PaddleOCR failed, falling back to EasyOCR:", e)
-                self.paddle = None
+                print("[WARN] PaddleOCR failed:", e)
 
-    def read_plate(self, plate_img: np.ndarray) -> str:
+    def read_plate(self, plate_img: np.ndarray):
         if plate_img is None or plate_img.size == 0:
-            return ""
+            return "", 0.0
 
         plate_img = self._preprocess(plate_img)
 
-        # 1️⃣ PaddleOCR first
+        #  PaddleOCR first
         if self.paddle:
-            text = self._read_paddle(plate_img)
+            text, conf = self._read_paddle(plate_img)
             if text:
-                print(f"[OCR:PADDLE] {text}")
-                return text
+                print(f"[OCR:PADDLE] {text} ({conf:.2f})")
+                return text, conf
 
-        # 2️⃣ EasyOCR fallback
-        text = self._read_easy(plate_img)
+        #  EasyOCR fallback
+        text, conf = self._read_easy(plate_img)
         if text:
-            print(f"[OCR:EASY] {text}")
-            return text
+            print(f"[OCR:EASY] {text} ({conf:.2f})")
+            return text, conf
 
-        return ""
+        return "", 0.0
+
 
     def _read_paddle(self, img):
         try:
-            result = self.paddle.predict(img) 
+            result = self.paddle.predict(img)
         except Exception as e:
             print("[ERROR] PaddleOCR failed:", e)
-            return ""
+            return "", 0.0
 
         if not result or not result[0]:
-            return ""
+            return "", 0.0
 
         best = max(result[0], key=lambda x: x[1][1])
-        return self._clean(best[1][0])
-
+        text = self._clean(best[1][0])
+        conf = float(best[1][1])
+        return text, conf
 
     def _read_easy(self, img):
         results = self.easy.readtext(img)
         if not results:
-            return ""
+            return "", 0.0
 
         results.sort(key=lambda x: x[2], reverse=True)
-        return self._clean(results[0][1])
+        text = self._clean(results[0][1])
+        conf = float(results[0][2])
+        return text, conf
 
-    def _clean(self, text: str) -> str:
-        text = text.upper()
-        text = text.upper()
-        text = "".join(c for c in text if c.isalnum())
-        text = apply_plate_syntax(text, country="IN")
-        return text
 
+    def _clean(self, text):
+        text = "".join(c for c in text.upper() if c.isalnum())
+        return apply_plate_syntax(text, country="IN")
 
     def _preprocess(self, img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        h, w = gray.shape
+        if gray.mean() < 70:  # Night footage
+            gray = cv2.adaptiveThreshold(
+                gray, 255,
+                cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY, 11, 2
+            )
+
+        h = gray.shape[0]
         if h < 40:
             scale = 40 / h
             gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
