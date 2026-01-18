@@ -51,19 +51,15 @@ def process_license_plate(image, detector: PlateDetector):
         plate_img = det["crop"]
 
         text, ocr_conf = ocr_engine.read_plate(plate_img)
-
-        if not text or ocr_conf < 0.4:
+        if not text or ocr_conf < 0.1:
             continue
 
-        # Temporal stabilisation (video-safe)
-        plate_buffer[text] += 1
-        if plate_buffer[text] < 2:
-            continue
+        final_conf = 0.6 * det["det_conf"] + 0.4 * ocr_conf
 
         cv2.rectangle(image, (x1,y1),(x2,y2),(0,255,0),2)
         cv2.putText(
             image,
-            f"{text} ({ocr_conf:.2f})",
+            f"{text} ({final_conf:.2f})",
             (x1, y1-8),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.6,
@@ -74,7 +70,7 @@ def process_license_plate(image, detector: PlateDetector):
         results.append({
             "plate": text,
             "det_conf": det["det_conf"],
-            "ocr_conf": ocr_conf,
+            "ocr_conf": final_conf,
             "bbox": det["bbox"]
         })
 
