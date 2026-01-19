@@ -1,10 +1,12 @@
-ultralytics
-opencv-python
-numpy
-paddleocr
-paddlepaddle
 fastapi
 uvicorn
+opencv-python-headless
+ultralytics
+torch
+numpy
+easyocr
+paddleocr
+paddlepaddle
 sqlalchemy
 pydantic
 python-multipart
