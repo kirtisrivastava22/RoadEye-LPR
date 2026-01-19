@@ -1,7 +1,0 @@
-flask
-flask-cors
-opencv-python
-ultralytics
-paddleocr
-numpy
-paddlepaddle

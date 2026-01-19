@@ -1,6 +1,5 @@
 # Python (Flask) dependencies and environment files
 .gitignore
-/experiments
 *.pyc
 __pycache__/
 instance/

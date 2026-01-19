@@ -1,4 +1,0 @@
-train: /content/LicenseDetectorModel/dataset/images/train
-val: /content/LicenseDetectorModel/dataset/images/val
-nc: 1
-names: ["license_plate"]
