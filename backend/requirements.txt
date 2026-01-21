@@ -8,7 +8,7 @@ python-multipart
 python-dotenv
 
 # ML (CPU only)
-torch==2.1.2
+torch==2.1.*
 torchvision==0.16.2
 ultralytics==8.4.6
 easyocr
