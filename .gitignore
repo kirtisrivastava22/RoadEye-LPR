@@ -21,7 +21,7 @@ Thumbs.db
 uploads/
 dataset/
 frontend/.gitignore
-
+backend/.env
 # Miscellaneous
 *.log
 *.pem
