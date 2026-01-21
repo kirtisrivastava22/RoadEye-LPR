@@ -13,7 +13,7 @@ router = APIRouter()
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads", "images")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-plate_detector = PlateDetector( model_path="../../new_runs/detect/train/weights/best.pt" )
+plate_detector = PlateDetector( model_path="../new_runs/detect/train/weights/best.pt" )
 
 @router.post("/image")
 async def detect_image(file: UploadFile = File(...)):

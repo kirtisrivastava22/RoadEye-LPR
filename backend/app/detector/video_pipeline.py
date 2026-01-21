@@ -28,7 +28,7 @@ def get_model():
     """Lazy load YOLO model to avoid multiprocessing issues"""
     global _model
     if _model is None:
-        _model = YOLO("../../new_runs/detect/train/weights/best.pt")
+        _model = YOLO("../new_runs/detect/train/weights/best.pt")
     return _model
 
 def detect_license_plate(image):
