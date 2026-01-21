@@ -1,71 +1,63 @@
-"use client"
-
-import { useEffect, useRef, useState } from "react"
-import {
-  Play,
-  Square,
-  CheckCircle2,
-  Clock,
-  Camera,
-  Copy,
-} from "lucide-react"
+'use client';
+import { useEffect, useRef, useState } from "react";
+import { Play, Square, CheckCircle2, Clock, Camera, Copy } from "lucide-react";
 
 type Detection = {
-  plate: string
-  confidence: number
-  timestamp: string
-}
+  plate: string;
+  confidence: number;
+  timestamp: string;
+};
 
 export default function LivePage() {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const wsRef = useRef<WebSocket | null>(null)
-  const rafRef = useRef<number | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const rafRef = useRef<number | null>(null);
 
-  const [active, setActive] = useState(false)
-  const [detections, setDetections] = useState<Detection[]>([])
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
+  const [active, setActive] = useState(false);
+  const [detections, setDetections] = useState<Detection[]>([]);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   /* ---------- START CAMERA ---------- */
   const start = async () => {
-    if (active) return
+    if (active) return;
 
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true })
-    videoRef.current!.srcObject = stream
-    await videoRef.current!.play()
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    videoRef.current!.srcObject = stream;
+    await videoRef.current!.play();
 
     videoRef.current!.onloadedmetadata = () => {
-      canvasRef.current!.width = videoRef.current!.videoWidth
-      canvasRef.current!.height = videoRef.current!.videoHeight
-    }
+      canvasRef.current!.width = videoRef.current!.videoWidth;
+      canvasRef.current!.height = videoRef.current!.videoHeight;
+    };
 
-    const ws = new WebSocket("ws://localhost:8000/ws/webcam")
-    ws.binaryType = "arraybuffer"
-    wsRef.current = ws
+    const ws = new WebSocket("ws://localhost:8000/ws/webcam");
+    ws.binaryType = "arraybuffer";
+    wsRef.current = ws;
 
     ws.onmessage = (e) => {
-      const data = JSON.parse(e.data)
+      const data = JSON.parse(e.data);
 
       /* Draw annotated frame */
       if (data.frame) {
-        const img = new Image()
-        img.src = `data:image/jpeg;base64,${data.frame}`
+        const img = new Image();
+        img.src = `data:image/jpeg;base64,${data.frame}`;
         img.onload = () => {
-          const ctx = canvasRef.current!.getContext("2d")!
+          const ctx = canvasRef.current!.getContext("2d")!;
           ctx.clearRect(
             0,
             0,
             canvasRef.current!.width,
-            canvasRef.current!.height
-          )
-          ctx.drawImage(img, 0, 0)
-        }
+            canvasRef.current!.height,
+          );
+          ctx.drawImage(img, 0, 0);
+        };
       }
 
       /* Store detection */
       if (data.plate) {
         setDetections((prev) => {
-          if (prev[0]?.plate === data.plate) return prev
+          if (prev[0]?.plate === data.plate) return prev;
           return [
             {
               plate: data.plate,
@@ -73,19 +65,19 @@ export default function LivePage() {
               timestamp: new Date().toLocaleTimeString(),
             },
             ...prev,
-          ].slice(0, 20)
-        })
+          ].slice(0, 20);
+        });
       }
-    }
+    };
 
-    sendFrames()
-    setActive(true)
-  }
+    sendFrames();
+    setActive(true);
+  };
 
   /* ---------- SEND FRAMES ---------- */
   const sendFrames = () => {
-    const offscreen = document.createElement("canvas")
-    const ctx = offscreen.getContext("2d")!
+    const offscreen = document.createElement("canvas");
+    const ctx = offscreen.getContext("2d")!;
 
     const loop = () => {
       if (
@@ -93,44 +85,49 @@ export default function LivePage() {
         !wsRef.current ||
         wsRef.current.readyState !== WebSocket.OPEN
       ) {
-        return
+        return;
       }
 
-      offscreen.width = videoRef.current.videoWidth
-      offscreen.height = videoRef.current.videoHeight
-      ctx.drawImage(videoRef.current, 0, 0)
+      offscreen.width = videoRef.current.videoWidth;
+      offscreen.height = videoRef.current.videoHeight;
+      ctx.drawImage(videoRef.current, 0, 0);
 
-      offscreen.toBlob((blob) => {
-        if (blob) wsRef.current!.send(blob)
-      }, "image/jpeg", 0.7)
+      offscreen.toBlob(
+        (blob) => {
+          if (blob) wsRef.current!.send(blob);
+        },
+        "image/jpeg",
+        0.7,
+      );
 
-      rafRef.current = requestAnimationFrame(loop)
-    }
+      rafRef.current = requestAnimationFrame(loop);
+    };
 
-    loop()
-  }
+    loop();
+  };
 
   /* ---------- STOP ---------- */
   const stop = () => {
-    rafRef.current && cancelAnimationFrame(rafRef.current)
-    wsRef.current?.close()
+    rafRef.current && cancelAnimationFrame(rafRef.current);
+    wsRef.current?.close();
 
-    const tracks = (videoRef.current?.srcObject as MediaStream)?.getTracks()
-    tracks?.forEach((t) => t.stop())
+    const tracks = (videoRef.current?.srcObject as MediaStream)?.getTracks();
+    tracks?.forEach((t) => t.stop());
 
-    setActive(false)
-  }
+    setActive(false);
+  };
 
   const copyPlate = (plate: string, index: number) => {
-    navigator.clipboard.writeText(plate)
-    setCopiedIndex(index)
-    setTimeout(() => setCopiedIndex(null), 1500)
-  }
+    navigator.clipboard.writeText(plate);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 1500);
+  };
 
-  useEffect(() => () => stop(), [])
+  useEffect(() => () => stop(), []);
 
   /* ---------- UI ---------- */
   return (
+    <>
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
       <div className="max-w-7xl mx-auto">
         {/* HEADER */}
@@ -163,18 +160,17 @@ export default function LivePage() {
               <div className="relative aspect-video bg-black rounded-lg overflow-hidden border-2 border-cyan-500/40">
                 {/* Hidden input */}
                 <video
-  ref={videoRef}
-  muted
-  playsInline
-  className="absolute inset-0 w-full h-full object-cover"
-/>
+                  ref={videoRef}
+                  muted
+                  playsInline
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
 
                 {/* Annotated output */}
-               <canvas
-  ref={canvasRef}
-  className="absolute inset-0 w-full h-full pointer-events-none"
-/>
-
+                <canvas
+                  ref={canvasRef}
+                  className="absolute inset-0 w-full h-full pointer-events-none"
+                />
 
                 {!active && (
                   <div className="absolute inset-0 flex items-center justify-center text-slate-400">
@@ -210,8 +206,7 @@ export default function LivePage() {
                   detections.map((d, i) => (
                     <div
                       key={i}
-                      className="bg-slate-700/50 rounded-lg p-4 border border-slate-600 hover:border-cyan-500/50 transition group"
-                    >
+                      className="bg-slate-700/50 rounded-lg p-4 border border-slate-600 hover:border-cyan-500/50 transition group">
                       <div className="flex justify-between items-start">
                         <div>
                           <div className="flex items-center gap-2 text-xs text-cyan-400 mb-1">
@@ -258,16 +253,9 @@ export default function LivePage() {
         </div>
       </div>
 
-      {/* Scrollbar */}
-      <style jsx>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(6, 182, 212, 0.5);
-          border-radius: 3px;
-        }
-      `}</style>
+      
     </div>
-  )
+    </>
+    
+  );
 }

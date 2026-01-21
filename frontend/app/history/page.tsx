@@ -1,4 +1,4 @@
-"use client"
+'use client';
 import { useEffect, useState } from "react"
 import { History, Image, Video, Camera, Trash2, Download } from "lucide-react"
 
@@ -85,7 +85,8 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
+    <>
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-4xl font-bold text-cyan-400 flex items-center gap-3">
@@ -145,9 +146,7 @@ export default function HistoryPage() {
             {filteredRecords.map((record) => (
               <div
                 key={record.id}
-                className="bg-slate-800/50 backdrop-blur rounded-xl border border-slate-700 
-                  hover:border-cyan-500/50 transition-all group overflow-hidden"
-              >
+                className="bg-slate-800/50 backdrop-blur rounded-xl border border-slate-700 hover:border-cyan-500/50 transition-all group overflow-hidden">
                 {record.image_path && (
                   <div className="aspect-video bg-slate-900 relative overflow-hidden">
                     <img
@@ -208,5 +207,7 @@ export default function HistoryPage() {
         )}
       </div>
     </div>
+    </>
+
   )
 }
