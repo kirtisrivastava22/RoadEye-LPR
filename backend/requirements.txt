@@ -1,14 +1,14 @@
 fastapi
 uvicorn
 opencv-python-headless
-ultralytics
-torch==2.1.2
-torchvision==0.16.2
 numpy
-easyocr
-paddleocr
-paddlepaddle
 sqlalchemy
 pydantic
 python-multipart
 python-dotenv
+
+# ML (CPU only)
+torch==2.1.2
+torchvision==0.16.2
+ultralytics==8.4.6
+easyocr
