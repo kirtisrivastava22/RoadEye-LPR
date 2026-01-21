@@ -11,3 +11,4 @@ paddlepaddle
 sqlalchemy
 pydantic
 python-multipart
+python-dotenv
