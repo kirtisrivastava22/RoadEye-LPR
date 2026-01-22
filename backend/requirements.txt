@@ -13,8 +13,8 @@ opencv-python-headless==4.9.0.80
 numpy==1.26.3
 pillow==10.2.0
 
-torch==2.1.2+cpu
-torchvision==0.16.2+cpu
+torch==2.1.2
+torchvision==0.16.2
 
 # YOLO Detection
 ultralytics==8.1.0
