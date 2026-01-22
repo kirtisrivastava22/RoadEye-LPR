@@ -1,106 +1,215 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.detector.video_pipeline import process_license_plate
+from app.database import SessionLocal
+from app.models import Detection
+from datetime import datetime
+
 import cv2
 import numpy as np
 import base64
 import json
-import time 
+import time
+from asyncio import get_running_loop
+from functools import partial
+from collections import deque
 
 router = APIRouter()
 
+CONF_THRESHOLD = 0.2
+DEDUP_WINDOW_SEC = 5      # avoid saving same plate repeatedly
+MAX_IN_MEMORY_EVENTS = 500
+
+history_buffer = deque(maxlen=MAX_IN_MEMORY_EVENTS)
+recent_plates = {}  # plate -> last_seen_timestamp
+
+
 def encode_frame(frame):
-    """Convert OpenCV frame to base64 for frontend"""
     _, buffer = cv2.imencode(".jpg", frame)
     return base64.b64encode(buffer).decode("utf-8")
 
+
+from datetime import datetime
+
+def save_video_detection(plate, confidence, video_ts):
+    db = SessionLocal()
+    try:
+        record = Detection(
+            plate_number=plate,
+            confidence=confidence,
+            source="video",
+            timestamp=datetime.utcnow(),   # ✅ DB time
+            video_timestamp=video_ts,      # ✅ video frame time
+            image_path=None
+        )
+        db.add(record)
+        db.commit()
+    finally:
+        db.close()
+
+def save_live_detection(plate, confidence):
+    db = SessionLocal()
+    try:
+        record = Detection(
+            plate_number=plate,
+            confidence=confidence,
+            source="live",
+            timestamp=datetime.utcnow(),   # ✅ DB time
+            video_timestamp=None,
+            image_path=None
+        )
+        db.add(record)
+        db.commit()
+    finally:
+        db.close()
+
+
+
+def should_save_plate(plate):
+    """Deduplicate plate saves to protect DB"""
+    now = time.time()
+    last_seen = recent_plates.get(plate)
+
+    if last_seen and now - last_seen < DEDUP_WINDOW_SEC:
+        return False
+
+    recent_plates[plate] = now
+    return True
+
+
+# ===========================
+# VIDEO FILE WEBSOCKET
+# ===========================
 @router.websocket("/video")
 async def video_stream_ws(ws: WebSocket):
     await ws.accept()
-    detected_plates = set()
-    
+
+    loop = get_running_loop()
+    last_timestamp = 0.0
+
     try:
         while True:
-            # Receive data with timestamp
-            data = await ws.receive_bytes()
-            
-            # Try to parse timestamp from the beginning
-            try:
-                # Find the newline separator
-                newline_idx = data.find(b'\n')
-                if newline_idx > 0:
-                    # Extract metadata and image data
-                    metadata_bytes = data[:newline_idx]
-                    image_bytes = data[newline_idx + 1:]
-                    
-                    # Parse metadata
-                    metadata = json.loads(metadata_bytes.decode('utf-8'))
-                    video_timestamp = metadata.get('timestamp', 0)
-                else:
-                    # No metadata, just image
-                    image_bytes = data
-                    video_timestamp = 0
-            except:
-                # Fallback if parsing fails
-                image_bytes = data
-                video_timestamp = 0
-            
-            # Decode image
-            nparr = np.frombuffer(image_bytes, np.uint8)
+            msg = await ws.receive()
+
+            # ---------- TEXT ----------
+            if msg.get("text"):
+                try:
+                    payload = json.loads(msg["text"])
+
+                    if payload.get("type") == "ping":
+                        continue
+
+                    if payload.get("type") == "frame_meta":
+                        last_timestamp = float(payload.get("timestamp", last_timestamp))
+                        continue
+                except Exception:
+                    continue
+
+            # ---------- IMAGE ----------
+            if not msg.get("bytes"):
+                continue
+
+            nparr = np.frombuffer(msg["bytes"], np.uint8)
             frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            
             if frame is None:
                 continue
-            
-            # Process frame
-            _, annotated_frame, ocr_text, confidence = process_license_plate(frame)
-            
-            if ocr_text:
-                detected_plates.add(ocr_text.strip())
-            
-            frame_b64 = encode_frame(annotated_frame)
-            
-            # Send response with timestamp
-            await ws.send_json({
-                "frame": frame_b64,
-                "plate": ocr_text,
+
+            plate_img, annotated, plate_text, confidence = await loop.run_in_executor(
+                None,
+                partial(process_license_plate, frame)
+            )
+
+            if confidence < CONF_THRESHOLD:
+                plate_text = None
+
+            # ---------- SAVE TO DB (metadata only) ----------
+            if plate_text and should_save_plate(plate_text):
+                save_video_detection(
+                    plate=plate_text.strip(),
+                    confidence=confidence,
+                    video_ts=last_timestamp
+                )
+
+            # ---------- IN-MEMORY BUFFER ----------
+            history_buffer.append({
+                "plate": plate_text,
+                "timestamp": last_timestamp,
                 "confidence": confidence,
-                "timestamp": video_timestamp  # Send back the video timestamp
+                "source": "video"
             })
-            
+
+            # ---------- SEND BACK ----------
+            await ws.send_json({
+                "frame": encode_frame(annotated),
+                "plate": plate_text,
+                "confidence": confidence,
+                "timestamp": last_timestamp
+            })
+
     except WebSocketDisconnect:
-        print("[INFO] WebSocket disconnected")
-        print(f"[INFO] Total plates detected: {detected_plates}")
+        print("[INFO] Video WS disconnected")
+
     except Exception as e:
-        print(f"[ERROR] {e}")
+        print("[ERROR]", e)
         import traceback
         traceback.print_exc()
-        
-CONF_THRESHOLD = 0.2
 
+
+# ===========================
+# LIVE WEBCAM WEBSOCKET
+# ===========================
 @router.websocket("/webcam")
 async def webcam_ws(ws: WebSocket):
     await ws.accept()
+    loop = get_running_loop()
 
     try:
         while True:
-            data = await ws.receive_bytes()
+            msg = await ws.receive()
 
-            nparr = np.frombuffer(data, np.uint8)
+            if msg.get("text"):
+                try:
+                    payload = json.loads(msg["text"])
+                    if payload.get("type") == "ping":
+                        continue
+                except Exception:
+                    continue
+
+            if not msg.get("bytes"):
+                continue
+
+            nparr = np.frombuffer(msg["bytes"], np.uint8)
             frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
             if frame is None:
                 continue
 
-            _, annotated, plate, confidence = process_license_plate(frame)
+            plate_img, annotated, plate_text, confidence = await loop.run_in_executor(
+                None,
+                partial(process_license_plate, frame)
+            )
 
-            _, buffer = cv2.imencode(".jpg", annotated)
-            frame_b64 = base64.b64encode(buffer).decode()
+            if confidence < CONF_THRESHOLD:
+                plate_text = None
+
+            if plate_text and should_save_plate(plate_text):
+                save_live_detection(
+                    plate=plate_text.strip(),
+                    confidence=confidence,
+                    source="live"
+                )
+
+            history_buffer.append({
+                "plate": plate_text,
+                "timestamp": time.time(),
+                "confidence": confidence,
+                "source": "live"
+            })
 
             await ws.send_json({
-                "frame": frame_b64,
-                "plate": plate,
+                "frame": encode_frame(annotated),
+                "plate": plate_text,
                 "confidence": confidence,
                 "timestamp": time.time()
             })
+
     except WebSocketDisconnect:
-        print("Webcam disconnected")
+        print("[INFO] Webcam WS disconnected")

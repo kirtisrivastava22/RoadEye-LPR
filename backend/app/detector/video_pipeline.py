@@ -166,6 +166,7 @@ def extract_text_with_easyocr(image):
 
 
 def process_license_plate(image):
+    print("[PIPELINE] Processing frame")
     """Process single image for license plate detection and OCR"""
     plate, detected_image, confidence = detect_license_plate(image)
     

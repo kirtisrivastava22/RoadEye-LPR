@@ -39,13 +39,10 @@ async def detect_image(file: UploadFile = File(...)):
     results = []
     db = SessionLocal()
 
-    results = []
-    db = SessionLocal()
-
     try:
         for det in detections:
-            plate_text = det["plate"]
-            confidence = det["ocr_conf"]
+            plate_text = det.get("plate")
+            confidence = det.get("ocr_conf", 0.0)
 
             if not plate_text:
                 continue
@@ -55,7 +52,8 @@ async def detect_image(file: UploadFile = File(...)):
             image_filename = f"{timestamp}_{plate_text_clean}.jpg"
             abs_image_path = os.path.join(UPLOAD_DIR, image_filename)
 
-            cv2.imwrite(abs_image_path, annotated_image)
+            if annotated_image is not None:
+                cv2.imwrite(abs_image_path, annotated_image)
 
             record = Detection(
                 plate_number=plate_text_clean,
@@ -65,23 +63,31 @@ async def detect_image(file: UploadFile = File(...)):
             )
 
             db.add(record)
-            db.commit()
-            db.refresh(record)
+            db.flush()  # faster than commit per row
 
             results.append({
                 "id": record.id,
                 "plate_number": record.plate_number,
-                "confidence": record.confidence
+                "confidence": float(record.confidence),
             })
 
-        _, buffer = cv2.imencode(".jpg", annotated_image)
-        annotated_b64 = base64.b64encode(buffer).decode("utf-8")
+        db.commit()
+
+        annotated_b64 = None
+        if annotated_image is not None:
+            _, buffer = cv2.imencode(".jpg", annotated_image)
+            annotated_b64 = base64.b64encode(buffer).decode("utf-8")
 
         return {
             "detections": results,
             "count": len(results),
-            "annotated_image": annotated_b64
+            "annotated_image": annotated_b64,
         }
+
+    except Exception as e:
+        db.rollback()
+        print("IMAGE DETECTION ERROR:", e)
+        return {"detections": [], "count": 0}
 
     finally:
         db.close()
