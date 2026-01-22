@@ -7,6 +7,9 @@ from app.detector.detector import process_license_plate,PlateDetector
 from app.database import SessionLocal
 from app.models import Detection
 import os
+import asyncio
+from functools import partial
+
 
 router = APIRouter()
 
@@ -34,7 +37,12 @@ async def detect_image(file: UploadFile = File(...)):
     if image is None:
         return {"detections": [], "count": 0}
 
-    annotated_image, detections = process_license_plate(image, plate_detector)
+    loop = asyncio.get_running_loop()
+    annotated_image, detections = await loop.run_in_executor(
+        None,
+        partial(process_license_plate, image, plate_detector)
+    )
+
 
     results = []
     db = SessionLocal()

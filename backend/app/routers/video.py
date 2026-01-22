@@ -16,11 +16,11 @@ from collections import deque
 router = APIRouter()
 
 CONF_THRESHOLD = 0.2
-DEDUP_WINDOW_SEC = 5      # avoid saving same plate repeatedly
+DEDUP_WINDOW_SEC = 5     
 MAX_IN_MEMORY_EVENTS = 500
 
 history_buffer = deque(maxlen=MAX_IN_MEMORY_EVENTS)
-recent_plates = {}  # plate -> last_seen_timestamp
+recent_plates = {}  
 
 
 def encode_frame(frame):
@@ -37,8 +37,8 @@ def save_video_detection(plate, confidence, video_ts):
             plate_number=plate,
             confidence=confidence,
             source="video",
-            timestamp=datetime.utcnow(),   # ✅ DB time
-            video_timestamp=video_ts,      # ✅ video frame time
+            timestamp=datetime.utcnow(),   
+            video_timestamp=video_ts,     
             image_path=None
         )
         db.add(record)
@@ -53,7 +53,7 @@ def save_live_detection(plate, confidence):
             plate_number=plate,
             confidence=confidence,
             source="live",
-            timestamp=datetime.utcnow(),   # ✅ DB time
+            timestamp=datetime.utcnow(), 
             video_timestamp=None,
             image_path=None
         )
@@ -89,7 +89,7 @@ async def video_stream_ws(ws: WebSocket):
     try:
         while True:
             msg = await ws.receive()
-
+            await ws.send_json({"type": "status", "message": "processing"})
             # ---------- TEXT ----------
             if msg.get("text"):
                 try:
@@ -138,12 +138,16 @@ async def video_stream_ws(ws: WebSocket):
             })
 
             # ---------- SEND BACK ----------
-            await ws.send_json({
-                "frame": encode_frame(annotated),
-                "plate": plate_text,
-                "confidence": confidence,
-                "timestamp": last_timestamp
-            })
+            try:
+                await ws.send_json({
+                    "frame": encode_frame(annotated),
+                    "plate": plate_text,
+                    "confidence": confidence,
+                    "timestamp": last_timestamp
+                })
+            except Exception:
+                break  # client disconnected
+
 
     except WebSocketDisconnect:
         print("[INFO] Video WS disconnected")
@@ -165,6 +169,7 @@ async def webcam_ws(ws: WebSocket):
     try:
         while True:
             msg = await ws.receive()
+            await ws.send_json({"type": "status", "message": "processing"})
 
             if msg.get("text"):
                 try:
@@ -193,8 +198,7 @@ async def webcam_ws(ws: WebSocket):
             if plate_text and should_save_plate(plate_text):
                 save_live_detection(
                     plate=plate_text.strip(),
-                    confidence=confidence,
-                    source="live"
+                    confidence=confidence
                 )
 
             history_buffer.append({

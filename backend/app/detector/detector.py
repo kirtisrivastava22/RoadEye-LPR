@@ -19,7 +19,7 @@ class PlateDetector:
         self.model = YOLO(model_path)
 
     def detect(self, image, conf_thresh=0.25):
-        results = self.model.predict(image, imgsz=960, conf=conf_thresh, verbose=False)
+        results = self.model.predict(image, imgsz=640, conf=conf_thresh, verbose=False)
         detections = []
 
         if not results:

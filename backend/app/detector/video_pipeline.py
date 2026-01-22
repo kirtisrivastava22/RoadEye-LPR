@@ -6,6 +6,10 @@ from collections import defaultdict
 from app.detector.ocr import PlateOCR
 import torch
 torch.set_grad_enabled(False)
+import logging
+logger = logging.getLogger("lpr")
+logger.setLevel(logging.WARNING)
+
 
 _ocr_engine = None
 
@@ -35,7 +39,7 @@ plate_buffer = defaultdict(list)
 def get_model():
     global _model
     if _model is None:
-        print(f"[INIT] Loading YOLO model from {MODEL_PATH}")
+        logger.debug(f"[INIT] Loading YOLO model from {MODEL_PATH}")
         _model = YOLO(MODEL_PATH)
     return _model
 
@@ -44,10 +48,10 @@ def detect_license_plate(image):
     model = get_model()
     
     if image is None or image.size == 0:
-        print("[ERROR] Invalid input image")
+        logger.error("[ERROR] Invalid input image")
         return None, image, 0.0
     
-    print(f"[DEBUG] Processing image shape: {image.shape}")
+    logger.debug(f"[DEBUG] Processing image shape: {image.shape}")
     
     results = model.predict(
     source=image,
@@ -61,14 +65,14 @@ def detect_license_plate(image):
 
     
     if not results or len(results) == 0:
-        print("[DEBUG] No results returned from model")
+        logger.debug("[DEBUG] No results returned from model")
         return None, image, 0.0
     
     result = results[0]
-    print(f"[DEBUG] Total detections: {len(result.boxes)}")
+    logger.debug(f"[DEBUG] Total detections: {len(result.boxes)}")
     
     if len(result.boxes) == 0:
-        print("[DEBUG] No boxes detected")
+        logger.debug("[DEBUG] No boxes detected")
         return None, image, 0.0
     
     best_plate = None
@@ -79,7 +83,7 @@ def detect_license_plate(image):
         confidence = float(box.conf[0])
         x1, y1, x2, y2 = map(int, box.xyxy[0])
         
-        print(f"[DEBUG] Box {i}: conf={confidence:.3f}, coords=({x1},{y1},{x2},{y2})")
+        logger.debug(f"[DEBUG] Box {i}: conf={confidence:.3f}, coords=({x1},{y1},{x2},{y2})")
         
         if x2 <= x1 or y2 <= y1:
             continue
@@ -97,7 +101,7 @@ def detect_license_plate(image):
                 best_box = (x1, y1, x2, y2)
     
     if best_plate is None:
-        print("[DEBUG] No valid plates found after filtering")
+        logger.debug("[DEBUG] No valid plates found after filtering")
         return None, image, 0.0
     
     x1, y1, x2, y2 = best_box
@@ -105,7 +109,7 @@ def detect_license_plate(image):
     cv2.putText(image, f"{best_confidence:.2f}", (x1, y1-10),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
     
-    print(f"[SUCCESS] Plate detected with confidence {best_confidence:.3f}")
+    logger.debug(f"[SUCCESS] Plate detected with confidence {best_confidence:.3f}")
     return best_plate, image, best_confidence
 
 
@@ -114,10 +118,10 @@ def extract_text_with_easyocr(image):
     ocr = get_ocr_engine()
     
     if image is None or image.size == 0:
-        print("[DEBUG] Invalid image for OCR")
+        logger.debug(" Invalid image for OCR")
         return []
     
-    print(f"[DEBUG] OCR input shape: {image.shape}")
+    logger.debug(f"OCR input shape: {image.shape}")
     
     # EasyOCR works better with grayscale for license plates
     if len(image.shape) == 3:
@@ -132,7 +136,7 @@ def extract_text_with_easyocr(image):
     if h < 32:
         scale = 32 / h
         gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-        print(f"[DEBUG] Resized to: {gray.shape}")
+        logger.debug(f"[DEBUG] Resized to: {gray.shape}")
     
     # Apply CLAHE
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
@@ -146,27 +150,27 @@ def extract_text_with_easyocr(image):
         results = ocr.readtext(enhanced_rgb, detail=1)
         
         if not results:
-            print("[DEBUG] OCR returned no results")
+            logger.debug("OCR returned no results")
             return []
         
         texts = []
         for detection in results:
             bbox, text, conf = detection
-            print(f"[DEBUG] OCR detected: '{text}' (confidence: {conf:.3f})")
+            logger.debug(f"[DEBUG] OCR detected: '{text}' (confidence: {conf:.3f})")
             if conf > 0.3:  # Filter low confidence
                 texts.append(text)
         
         return texts
         
     except Exception as e:
-        print(f"[ERROR] OCR exception: {e}")
+        logger.error(f"[ERROR] OCR exception: {e}")
         import traceback
         traceback.print_exc()
         return []
 
 
 def process_license_plate(image):
-    print("[PIPELINE] Processing frame")
+    logger.debug("[PIPELINE] Processing frame")
     """Process single image for license plate detection and OCR"""
     plate, detected_image, confidence = detect_license_plate(image)
     
@@ -184,7 +188,7 @@ def process_license_plate(image):
     cv2.putText(detected_image, formatted_text, (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
     
-    print(f"[RESULT] Plate: {formatted_text}")
+    logger.info(f"[RESULT] Plate: {formatted_text}")
     return plate, detected_image, formatted_text, confidence
 
 
@@ -194,7 +198,7 @@ def process_video(input_path, output_path):
     output_path = output_path.rsplit('.', 1)[0] + '.mp4'
     
     if not cap.isOpened():
-        print(f"[ERROR] Could not open video file: {input_path}")
+        logger.error(f"[ERROR] Could not open video file: {input_path}")
         return False, []
     
     fps = cap.get(cv2.CAP_PROP_FPS)
@@ -217,7 +221,7 @@ def process_video(input_path, output_path):
             if annotated_frame is None:
                 annotated_frame = frame
         except Exception as e:
-            print(f"[ERROR] Frame {frame_count} failed: {e}")
+            logger.error(f"[ERROR] Frame {frame_count} failed: {e}")
             annotated_frame = frame
             ocr_text = None
         
@@ -227,12 +231,14 @@ def process_video(input_path, output_path):
         out.write(annotated_frame)
         if ocr_text:
             plate_buffer[ocr_text].append(ocr_text)
+            if len(plate_buffer[ocr_text]) > 5:
+                plate_buffer[ocr_text].pop(0)
 
             if len(plate_buffer[ocr_text]) >= 3:
                 detected_plates.add(ocr_text)
         
         if frame_count % 30 == 0:
-            print(f"[INFO] Processed frame {frame_count} - OCR: {ocr_text}")
+            logger.info(f"[INFO] Processed frame {frame_count} - OCR: {ocr_text}")
         
 
         frame_count += 1
@@ -240,6 +246,6 @@ def process_video(input_path, output_path):
     cap.release()
     out.release()
     
-    print(f"[SUCCESS] Video processing complete: {output_path}")
-    print(f"[INFO] Detected plates: {detected_plates}")
+    logger.info(f"Video processing complete: {output_path}")
+    logger.info("Detected plates: {detected_plates}")
     return True, list(detected_plates)
