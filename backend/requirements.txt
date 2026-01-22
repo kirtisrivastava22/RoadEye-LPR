@@ -1,14 +1,27 @@
-fastapi
-uvicorn
-opencv-python-headless
-numpy
-sqlalchemy
-pydantic
-python-multipart
-python-dotenv
+# Core Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+python-dotenv==1.0.0
+pydantic==2.6.0
 
-# ML (CPU only)
-torch==2.1.*
-torchvision==0.16.2
-ultralytics==8.4.6
-easyocr
+# Database
+sqlalchemy==2.0.25
+
+# Image Processing - Headless (lighter)
+opencv-python-headless==4.9.0.80
+numpy==1.26.3
+pillow==10.2.0
+
+torch==2.1.2+cpu
+torchvision==0.16.2+cpu
+
+# YOLO Detection
+ultralytics==8.1.0
+
+# OCR - Use PaddleOCR instead of EasyOCR (lighter and faster)
+paddlepaddle==2.6.0
+paddleocr==2.7.0
+
+# If you MUST use EasyOCR (adds ~1GB), uncomment below:
+# easyocr==1.7.1
