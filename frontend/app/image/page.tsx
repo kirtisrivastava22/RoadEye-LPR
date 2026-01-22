@@ -9,6 +9,7 @@ interface DetectionResult {
 }
 
 export default function ImagePage() {
+   const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [annotatedImage, setAnnotatedImage] = useState<string | null>(null)
@@ -33,7 +34,7 @@ export default function ImagePage() {
       const formData = new FormData()
       formData.append("file", file)
       
-      const res = await fetch("http://localhost:8000/detect/image", {
+      const res = await fetch(`${API_BASE}/detect/image`, {
         method: "POST",
         body: formData,
       })

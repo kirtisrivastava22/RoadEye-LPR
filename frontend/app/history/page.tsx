@@ -12,6 +12,7 @@ interface HistoryRecord {
 }
 
 export default function HistoryPage() {
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
   const [records, setRecords] = useState<HistoryRecord[]>([])
   const [filter, setFilter] = useState<string>("all")
   const [loading, setLoading] = useState(true)
@@ -22,7 +23,7 @@ export default function HistoryPage() {
 
   const fetchHistory = async () => {
     try {
-      const res = await fetch("http://localhost:8000/history/")
+      const res = await fetch(`${API_BASE}/history/`)
       const data = await res.json()
       setRecords(data)
     } catch (error) {
@@ -36,7 +37,7 @@ export default function HistoryPage() {
     if (!confirm("Delete this record?")) return
     
     try {
-      await fetch(`http://localhost:8000/history/${id}`, {
+      await fetch(`${API_BASE}/history/${id}`, {
         method: "DELETE"
       })
       setRecords(prev => prev.filter(r => r.id !== id))

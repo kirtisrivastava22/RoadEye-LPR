@@ -53,7 +53,9 @@ export default function LiveVideoUpload() {
 
   const connectWebSocket = () => {
     if (ws) return;
-    const socket = new WebSocket("ws://localhost:8000/ws/video");
+    const WS_BASE = process.env.NEXT_PUBLIC_WS_BASE;
+    const socket = new WebSocket(`${WS_BASE}/ws/video`);
+
     socket.binaryType = "arraybuffer";
 
     socket.onmessage = (event) => {

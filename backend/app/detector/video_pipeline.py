@@ -16,6 +16,15 @@ def get_ocr_engine():
 # Prevent multiprocessing issues on Windows
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_PATH = os.path.join(
+    BASE_DIR,
+    "new_runs",
+    "detect",
+    "train",
+    "weights",
+    "best.pt"
+)
 # Initialize models as None
 _model = None
 
@@ -25,7 +34,7 @@ def get_model():
     """Lazy load YOLO model to avoid multiprocessing issues"""
     global _model
     if _model is None:
-        _model = YOLO("../new_runs/detect/train/weights/best.pt")
+        _model = YOLO(model_path=MODEL_PATH)
     return _model
 
 def detect_license_plate(image):

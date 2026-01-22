@@ -9,6 +9,7 @@ type Detection = {
 };
 
 export default function LivePage() {
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -31,7 +32,10 @@ export default function LivePage() {
       canvasRef.current!.height = videoRef.current!.videoHeight;
     };
 
-    const ws = new WebSocket("ws://localhost:8000/ws/webcam");
+    const WS_BASE = process.env.NEXT_PUBLIC_WS_BASE;
+
+    const ws = new WebSocket(`${WS_BASE}/ws/video`);
+
     ws.binaryType = "arraybuffer";
     wsRef.current = ws;
 
