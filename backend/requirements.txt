@@ -20,7 +20,7 @@ torchvision==0.16.2
 ultralytics==8.1.0
 
 # OCR - Use PaddleOCR instead of EasyOCR (lighter and faster)
-paddlepaddle==2.6.0
+paddlepaddle==2.6.2
 paddleocr==2.7.0
 
 # If you MUST use EasyOCR (adds ~1GB), uncomment below:
