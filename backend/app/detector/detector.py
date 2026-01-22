@@ -53,7 +53,6 @@ def process_license_plate(image, detector: PlateDetector):
     detections = detector.detect(image)
     results = []
     ocr_engine = get_ocr_engine()
-    text, ocr_conf = ocr_engine.read_plate(plate_img)
 
     for det in detections:
         x1, y1, x2, y2 = det["bbox"]

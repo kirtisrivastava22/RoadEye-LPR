@@ -4,6 +4,8 @@ import os
 import logging
 from collections import defaultdict
 from app.detector.ocr import PlateOCR
+import torch
+torch.set_grad_enabled(False)
 
 _ocr_engine = None
 
@@ -31,10 +33,10 @@ _model = None
 plate_buffer = defaultdict(list)
 
 def get_model():
-    """Lazy load YOLO model to avoid multiprocessing issues"""
     global _model
     if _model is None:
-        _model = YOLO(model_path=MODEL_PATH)
+        print(f"[INIT] Loading YOLO model from {MODEL_PATH}")
+        _model = YOLO(MODEL_PATH)
     return _model
 
 def detect_license_plate(image):
@@ -48,12 +50,15 @@ def detect_license_plate(image):
     print(f"[DEBUG] Processing image shape: {image.shape}")
     
     results = model.predict(
-        source=image, 
-        conf=0.15,
-        iou=0.45,
-        verbose=False,
-        imgsz=640
+    source=image,
+    imgsz=640,
+    conf=0.15,
+    iou=0.45,
+    device="cpu",
+    half=False,
+    verbose=False
     )
+
     
     if not results or len(results) == 0:
         print("[DEBUG] No results returned from model")
