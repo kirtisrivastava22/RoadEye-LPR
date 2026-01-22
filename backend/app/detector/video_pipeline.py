@@ -1,28 +1,25 @@
 import cv2
 from ultralytics import YOLO
-import easyocr
 import os
 import logging
 from collections import defaultdict
 from app.detector.ocr import PlateOCR
 
+_ocr_engine = None
+
+def get_ocr_engine():
+    global _ocr_engine
+    if _ocr_engine is None:
+        _ocr_engine = PlateOCR()
+    return _ocr_engine
 
 # Prevent multiprocessing issues on Windows
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 # Initialize models as None
-_ocr = None
 _model = None
 
-ocr_engine = PlateOCR()
 plate_buffer = defaultdict(list)
-
-def get_ocr():
-    """Lazy load OCR to avoid multiprocessing issues"""
-    global _ocr
-    if _ocr is None:
-        _ocr = easyocr.Reader(['en'], gpu=False)
-    return _ocr
 
 def get_model():
     """Lazy load YOLO model to avoid multiprocessing issues"""
@@ -100,7 +97,7 @@ def detect_license_plate(image):
 
 def extract_text_with_easyocr(image):
     """Extract text from license plate image using EasyOCR"""
-    ocr = get_ocr()
+    ocr = get_ocr_engine()
     
     if image is None or image.size == 0:
         print("[DEBUG] Invalid image for OCR")
@@ -165,8 +162,8 @@ def process_license_plate(image):
     
     # if not ocr_texts:
     #     return None, detected_image, None, confidence
-    
-    text = ocr_engine.read_plate(plate)
+    ocr = get_ocr_engine()
+    text, conf = ocr.read_plate(plate)
     formatted_text = text
     
     cv2.putText(detected_image, formatted_text, (10, 30),

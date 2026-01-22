@@ -3,7 +3,14 @@ from ultralytics import YOLO
 from collections import defaultdict
 from app.detector.ocr import PlateOCR
 
-ocr_engine = PlateOCR()
+_ocr_engine = None
+
+def get_ocr_engine():
+    global _ocr_engine
+    if _ocr_engine is None:
+        _ocr_engine = PlateOCR()
+    return _ocr_engine
+
 plate_buffer = defaultdict(int)
 
 
@@ -45,6 +52,8 @@ class PlateDetector:
 def process_license_plate(image, detector: PlateDetector):
     detections = detector.detect(image)
     results = []
+    ocr_engine = get_ocr_engine()
+    text, ocr_conf = ocr_engine.read_plate(plate_img)
 
     for det in detections:
         x1, y1, x2, y2 = det["bbox"]

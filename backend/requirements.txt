@@ -18,8 +18,4 @@ torchvision==0.16.2
 
 # YOLO Detection
 ultralytics==8.1.0
-
-
-paddlepaddle==2.6.2
-paddleocr==2.7.0
 easyocr==1.7.1
